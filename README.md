@@ -43,6 +43,10 @@ project session names retain the old script's naming format; tries get distinct
 
 ## Build and verify
 
+Enter the repository with direnv enabled and allowed to load `.envrc`; Go,
+fzf, tmux and Git will come from the pinned Nix dev shell. You can also enter
+it manually with `nix develop` without direnv. After that:
+
 ```sh
 go test ./...
 go vet ./...
@@ -55,9 +59,16 @@ go build -o tmux-sessionizer .
 If Go is not installed but Nix is available:
 
 ```sh
-nix shell nixpkgs#go --command go test ./...
-nix shell nixpkgs#go --command go build -o tmux-sessionizer .
+nix develop --command go test ./...
+nix develop --command go build -o tmux-sessionizer .
 ```
+
+`direnv` and the `nix-direnv` integration are enabled in the companion
+dotfiles Home Manager shell configuration. After applying that configuration,
+run `direnv allow` **once** in this directory to trust `.envrc`. Thereafter
+the shell loads on entry and unloads on exit. The allow step is intentionally
+not automatic. If you have not applied Home Manager yet, `nix develop` works
+on its own.
 
 Tests create temporary projects and tries. The CLI test runs real fzf in
 noninteractive filter mode with a fake tmux; it does not create live tmux
