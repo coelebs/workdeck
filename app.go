@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type entry struct {
@@ -121,5 +122,10 @@ func (a app) pick(entries []entry) (entry, bool, error) {
 }
 
 func cleanDisplay(s string) string {
-	return strings.NewReplacer("\t", " ", "\n", " ", "\r", " ").Replace(s)
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s)
 }
