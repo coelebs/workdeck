@@ -14,7 +14,7 @@ import (
 func (a app) tryRoot() (string, error) {
 	root := a.triesDir
 	if root == "" {
-		root = filepath.Join(a.home, "src", "tries")
+		root = filepath.Join(a.home, "Projects", "tries")
 	} else if root == "~" {
 		root = a.home
 	} else if strings.HasPrefix(root, "~/") {

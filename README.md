@@ -22,14 +22,14 @@ Choose a tries location outside any parent Git repository if you want the
 directories to be wholly independent of Git.
 
 Set `WORKDECK_TRIES_DIR` to change the location (default
-`~/src/tries`). Both absolute paths and `~/...` paths work:
+`~/Projects/tries/`). Both absolute paths and `~/...` paths work:
 
 ```sh
 export WORKDECK_TRIES_DIR="$HOME/Projects/experiments"
 ```
 
 The picker searches Git projects under `$HOME` to depth four (including Git
-worktrees with `.git` files), skipping `.trash*`, `ncs*` and `.cache*` paths.
+worktrees with `.git` files), skipping dot-directories and `ncs*` paths.
 It also lists immediate child directories of the tries location, even though
 they do not contain `.git`. Projects appear first; tries are labelled `try`.
 fzf searches their names, not the tries root, and uses input order to break

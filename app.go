@@ -30,7 +30,7 @@ type app struct {
 
 func (a app) execute(args []string) error {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("usage: workdeck [directory] | workdeck try <name>\ntries: $WORKDECK_TRIES_DIR (default: ~/src/tries)")
+		fmt.Println("usage: workdeck [directory] | workdeck try <name>\ntries: $WORKDECK_TRIES_DIR (default: ~/Projects/tries/)")
 		return nil
 	}
 	if len(args) > 0 && args[0] == "try" {
@@ -92,15 +92,20 @@ func (a app) execute(args []string) error {
 
 func (a app) pick(entries []entry) (entry, bool, error) {
 	var input strings.Builder
+	kindWidth, nameWidth := 0, 0
+	for _, item := range entries {
+		kindWidth = max(kindWidth, len([]rune(cleanDisplay(item.kind))))
+		nameWidth = max(nameWidth, len([]rune(cleanDisplay(item.name))))
+	}
 	for i, item := range entries {
 		// fzf returns the original input line. Only the numeric ID is used to
 		// resolve a selection, so display escaping cannot alter a real path.
-		fmt.Fprintf(&input, "%d\t%s\t%s\t%s\n", i, item.kind,
+		fmt.Fprintf(&input, "%d\t%-*s\t%-*s\t%s\n", i, kindWidth, item.kind, nameWidth,
 			cleanDisplay(item.name), cleanDisplay(item.path))
 	}
 
 	output, err := a.run("fzf", []string{
-		"--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index",
+		"--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index", "--tabstop=1",
 	}, input.String(), false)
 	if err != nil {
 		var exit *execExitError

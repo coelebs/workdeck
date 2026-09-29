@@ -33,7 +33,7 @@ func findProjects(home, triesDir string) ([]entry, error) {
 			return filepath.SkipDir
 		}
 		name := d.Name()
-		if strings.HasPrefix(name, ".trash") || strings.HasPrefix(name, "ncs") || strings.HasPrefix(name, ".cache") {
+		if (strings.HasPrefix(name, ".") && name != ".git") || strings.HasPrefix(name, "ncs") {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}

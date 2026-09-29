@@ -22,13 +22,15 @@ func TestFindProjects(t *testing.T) {
 	worktree := filepath.Join(home, "Projects", "worktree")
 	tooDeep := filepath.Join(home, "a", "b", "c", "d")
 	ignored := filepath.Join(home, ".cache-work", "hidden")
+	hiddenAncestor := filepath.Join(home, ".codex", ".tmp", "plugins")
+	hiddenProject := filepath.Join(home, "Projects", ".private")
 	tries := filepath.Join(home, "Projects", "tries")
-	for _, path := range []string{project, worktree, tooDeep, ignored, filepath.Join(tries, "with-git")} {
+	for _, path := range []string{project, worktree, tooDeep, ignored, hiddenAncestor, hiddenProject, filepath.Join(tries, "with-git")} {
 		if err := os.MkdirAll(path, 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, path := range []string{project, tooDeep, ignored, filepath.Join(tries, "with-git")} {
+	for _, path := range []string{project, tooDeep, ignored, hiddenAncestor, hiddenProject, filepath.Join(tries, "with-git")} {
 		if err := os.Mkdir(filepath.Join(path, ".git"), 0755); err != nil {
 			t.Fatal(err)
 		}

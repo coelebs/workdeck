@@ -82,8 +82,8 @@ func TestFzfPrefersProjectForSimilarMatch(t *testing.T) {
 	if _, err := exec.LookPath("fzf"); err != nil {
 		t.Skip("fzf not installed")
 	}
-	cmd := exec.Command("fzf", "--filter=redis", "--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index")
-	cmd.Stdin = strings.NewReader("0\tproject\tredis-server\t/projects/redis-server\n1\ttry\t2026-09-29-redis\t/tries/2026-09-29-redis\n")
+	cmd := exec.Command("fzf", "--filter=redis", "--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index", "--tabstop=1")
+	cmd.Stdin = strings.NewReader("0\tproject\tredis-server     \t/projects/redis-server\n1\ttry    \t2026-09-29-redis\t/tries/2026-09-29-redis\n")
 	output, err := cmd.Output()
 	if err != nil || !strings.HasPrefix(string(output), "0\tproject\tredis-server") {
 		t.Fatalf("fzf ranking: %q, %v", output, err)

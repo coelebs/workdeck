@@ -28,7 +28,7 @@ func TestTryName(t *testing.T) {
 func TestTryRoot(t *testing.T) {
 	home := t.TempDir()
 	for _, tc := range []struct{ setting, want string }{
-		{"", filepath.Join(home, "src", "tries")},
+		{"", filepath.Join(home, "Projects", "tries")},
 		{"~/experiments", filepath.Join(home, "experiments")},
 		{filepath.Join(home, "somewhere"), filepath.Join(home, "somewhere")},
 	} {
@@ -100,13 +100,13 @@ func TestPickerIncludesTriesAfterProjects(t *testing.T) {
 	a := app{home: home, triesDir: root, run: func(name string, args []string, input string, interactive bool) (string, error) {
 		calls = append(calls, call{name: name, args: args, input: input, interactive: interactive})
 		if name == "fzf" {
-			if !strings.HasPrefix(input, "0\tproject\trepo\t"+project+"\n1\ttry\t2026-09-29-test\t"+trial+"\n") {
+			if !strings.HasPrefix(input, "0\tproject\trepo           \t"+project+"\n1\ttry    \t2026-09-29-test\t"+trial+"\n") {
 				t.Fatalf("picker order: %q", input)
 			}
-			if !reflect.DeepEqual(args, []string{"--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index"}) {
+			if !reflect.DeepEqual(args, []string{"--delimiter=\t", "--with-nth=2..", "--nth=2", "--tiebreak=index", "--tabstop=1"}) {
 				t.Fatalf("unexpected fzf args: %q", args)
 			}
-			return "1\ttry\t2026-09-29-test\t" + trial + "\n", nil
+			return "1\ttry    \t2026-09-29-test\t" + trial + "\n", nil
 		}
 		return "", nil
 	}}
@@ -133,7 +133,7 @@ func TestTryCommandStartsSession(t *testing.T) {
 	if err := a.execute([]string{"try", "my idea"}); err != nil {
 		t.Fatal(err)
 	}
-	wantPath := filepath.Join(home, "src", "tries", "2026-09-29-my-idea")
+	wantPath := filepath.Join(home, "Projects", "tries", "2026-09-29-my-idea")
 	want := []string{"new-session", "-A", "-s", "try-2026-09-29-my-idea", "-c", wantPath}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
