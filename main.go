@@ -12,7 +12,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	app := app{home: home, run: runCommand, insideTmux: os.Getenv("TMUX") != ""}
+	app := app{
+		home: home, run: runCommand, insideTmux: os.Getenv("TMUX") != "",
+		triesDir: os.Getenv("TMUX_SESSIONIZER_TRIES_DIR"),
+	}
 	if err := app.execute(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

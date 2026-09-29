@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type entry struct {
@@ -22,11 +23,27 @@ type app struct {
 	home       string
 	run        commandRunner
 	insideTmux bool
+	triesDir   string
+	today      func() time.Time
 }
 
 func (a app) execute(args []string) error {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Println("usage: tmux-sessionizer [directory] | tmux-sessionizer try <name>\ntries: $TMUX_SESSIONIZER_TRIES_DIR (default: ~/src/tries)")
+		return nil
+	}
+	if len(args) > 0 && args[0] == "try" {
+		if len(args) != 2 {
+			return errors.New("usage: tmux-sessionizer try <name> (name required)")
+		}
+		path, err := a.createTry(args[1])
+		if err != nil {
+			return err
+		}
+		return a.openSession(entry{kind: "try", name: filepath.Base(path), path: path})
+	}
 	if len(args) > 1 {
-		return errors.New("usage: tmux-sessionizer [directory]")
+		return errors.New("usage: tmux-sessionizer [directory] | tmux-sessionizer try <name>")
 	}
 
 	var selected entry
@@ -44,14 +61,23 @@ func (a app) execute(args []string) error {
 		}
 		selected = entry{kind: "project", name: filepath.Base(path), path: path}
 	} else {
-		projects, err := findProjects(a.home, "")
+		triesDir, err := a.tryRoot()
 		if err != nil {
 			return err
 		}
-		if len(projects) == 0 {
+		projects, err := findProjects(a.home, triesDir)
+		if err != nil {
+			return err
+		}
+		tries, err := findTries(triesDir)
+		if err != nil {
+			return err
+		}
+		items := append(projects, tries...)
+		if len(items) == 0 {
 			return nil
 		}
-		choice, ok, err := a.pick(projects)
+		choice, ok, err := a.pick(items)
 		if err != nil {
 			return err
 		}
