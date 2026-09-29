@@ -1,5 +1,5 @@
 {
-  description = "Development environment for tmux-sessionizer";
+  description = "Development environment for workdeck";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 

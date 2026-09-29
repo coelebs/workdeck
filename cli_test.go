@@ -19,7 +19,7 @@ func TestCLI(t *testing.T) {
 	if err := os.Mkdir(binDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(binDir, "tmux-sessionizer")
+	binary := filepath.Join(binDir, "workdeck")
 	build := exec.Command("go", "build", "-o", binary, ".")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v: %s", err, output)
@@ -34,7 +34,7 @@ func TestCLI(t *testing.T) {
 	}
 	baseEnv := append(os.Environ(),
 		"HOME="+home,
-		"TMUX_SESSIONIZER_TRIES_DIR="+tries,
+		"WORKDECK_TRIES_DIR="+tries,
 		"TMUX_LOG="+log,
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"TMUX=",

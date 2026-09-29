@@ -30,12 +30,12 @@ type app struct {
 
 func (a app) execute(args []string) error {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("usage: tmux-sessionizer [directory] | tmux-sessionizer try <name>\ntries: $TMUX_SESSIONIZER_TRIES_DIR (default: ~/src/tries)")
+		fmt.Println("usage: workdeck [directory] | workdeck try <name>\ntries: $WORKDECK_TRIES_DIR (default: ~/src/tries)")
 		return nil
 	}
 	if len(args) > 0 && args[0] == "try" {
 		if len(args) != 2 {
-			return errors.New("usage: tmux-sessionizer try <name> (name required)")
+			return errors.New("usage: workdeck try <name> (name required)")
 		}
 		path, err := a.createTry(args[1])
 		if err != nil {
@@ -44,7 +44,7 @@ func (a app) execute(args []string) error {
 		return a.openSession(entry{kind: "try", name: filepath.Base(path), path: path})
 	}
 	if len(args) > 1 {
-		return errors.New("usage: tmux-sessionizer [directory] | tmux-sessionizer try <name>")
+		return errors.New("usage: workdeck [directory] | workdeck try <name>")
 	}
 
 	var selected entry

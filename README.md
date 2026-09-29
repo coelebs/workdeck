@@ -1,17 +1,17 @@
-# tmux-sessionizer
+# workdeck
 
 A project and scratch-directory picker for tmux. It keeps the original
-`tmux-sessionizer` command shape and uses `fzf` for selection. Requires Go to
+sessionizer workflow and uses `fzf` for selection. Requires Go to
 build; at runtime it needs `fzf` for the picker and `tmux` to open sessions.
 
 ## Usage
 
 ```sh
-tmux-sessionizer                       # Pick a Git project or an existing try
-tmux-sessionizer ~/Projects/dotfiles   # Open a specific directory
-tmux-sessionizer try redis-pool         # Create or reopen today's named try
-tmux-sessionizer try 'test a library'   # Spaces become dashes
-tmux-sessionizer --help
+workdeck                       # Pick a Git project or an existing try
+workdeck ~/Projects/dotfiles   # Open a specific directory
+workdeck try redis-pool         # Create or reopen today's named try
+workdeck try 'test a library'   # Spaces become dashes
+workdeck --help
 ```
 
 `try` always requires a name. A new try named `redis-pool` is stored as
@@ -21,11 +21,11 @@ without deleting its contents. A try on a later day gets its own directory.
 Choose a tries location outside any parent Git repository if you want the
 directories to be wholly independent of Git.
 
-Set `TMUX_SESSIONIZER_TRIES_DIR` to change the location (default
+Set `WORKDECK_TRIES_DIR` to change the location (default
 `~/src/tries`). Both absolute paths and `~/...` paths work:
 
 ```sh
-export TMUX_SESSIONIZER_TRIES_DIR="$HOME/Projects/experiments"
+export WORKDECK_TRIES_DIR="$HOME/Projects/experiments"
 ```
 
 The picker searches Git projects under `$HOME` to depth four (including Git
@@ -50,17 +50,17 @@ it manually with `nix develop` without direnv. After that:
 ```sh
 go test ./...
 go vet ./...
-go build -o tmux-sessionizer .
-./tmux-sessionizer --help
-./tmux-sessionizer try my-test
-./tmux-sessionizer          # Check that my-test appears in the picker
+go build -o workdeck .
+./workdeck --help
+./workdeck try my-test
+./workdeck          # Check that my-test appears in the picker
 ```
 
 If Go is not installed but Nix is available:
 
 ```sh
 nix develop --command go test ./...
-nix develop --command go build -o tmux-sessionizer .
+nix develop --command go build -o workdeck .
 ```
 
 `direnv` and the `nix-direnv` integration are enabled in the companion
@@ -74,23 +74,12 @@ Tests create temporary projects and tries. The CLI test runs real fzf in
 noninteractive filter mode with a fake tmux; it does not create live tmux
 sessions. To test a particular tries location without changing your shell
 configuration, prefix the binary invocation with
-`TMUX_SESSIONIZER_TRIES_DIR=/your/path`.
+`WORKDECK_TRIES_DIR=/your/path`.
 
-## Activating the existing shortcuts
+## Trying it without replacing the current command
 
-The dotfiles repository supplies `~/.local/bin/tmux-sessionizer` through Home
-Manager, so building here **does not replace** that command. Do not write a
-binary into the Home Manager-managed `~/.local/bin` symlink. After verifying
-this build, replace the old script in
-`~/Projects/dotfiles/bin/.local/bin/tmux-sessionizer` with a launcher such as:
-
-```sh
-#!/bin/sh
-exec "$HOME/Projects/tmux-sessionizer/tmux-sessionizer" "$@"
-```
-
-Then apply your Home Manager configuration. The existing Ctrl-F bindings can
-keep invoking `tmux-sessionizer`. Keep the built binary at that path (or adjust
-the launcher when you install the program elsewhere). This activation is not
-performed automatically, so your current shortcuts keep working while you
-review this repository.
+This repository is independent of the dotfiles setup. Building `./workdeck`
+does **not** replace `tmux-sessionizer` or change any Ctrl-F bindings. Use the
+binary directly from this checkout while deciding whether to adopt it. No
+Home Manager activation or launcher is required to test it, and no workdeck
+integration has been added to the dotfiles repository.
