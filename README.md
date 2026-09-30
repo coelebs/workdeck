@@ -1,16 +1,15 @@
 # workdeck
 
-A project and scratch-directory picker for tmux. It keeps the original
-sessionizer workflow and uses `fzf` for selection. Requires Go to
-build; at runtime it needs `fzf` for the picker and `tmux` to open sessions.
+Work sessions for Git projects and named, non-Git experiments ("tries"),
+backed by tmux. The Go program uses fzf to pick an existing workspace.
 
 ## Usage
 
 ```sh
-workdeck                       # Pick a Git project or an existing try
-workdeck ~/Projects/dotfiles   # Open a specific directory
-workdeck try redis-pool         # Create or reopen today's named try
-workdeck try 'test a library'   # Spaces become dashes
+workdeck                         # Pick a Git project or existing try
+workdeck ~/Projects/dotfiles     # Open a specific directory
+workdeck try redis-pool           # Create or reopen today's named try
+workdeck try 'test a library'     # Spaces become dashes
 workdeck --help
 ```
 
@@ -41,45 +40,41 @@ creates a detached session if needed, then switches the client. Existing
 project session names retain the old script's naming format; tries get distinct
 `try-YYYY-MM-DD-name` session names.
 
-## Build and verify
+## Development
 
-Enter the repository with direnv enabled and allowed to load `.envrc`; Go,
-fzf, tmux and Git will come from the pinned Nix dev shell. You can also enter
-it manually with `nix develop` without direnv. After that:
+The Go sources and tests live in `src/`. Run `direnv allow` once to let
+`.envrc` load the pinned Nix dev shell automatically, or use `nix develop`
+manually. The shell provides Go, fzf, tmux and Git. From the repository root:
 
 ```sh
 go test ./...
 go vet ./...
-go build -o workdeck .
+go build -o workdeck ./src
 ./workdeck --help
-./workdeck try my-test
-./workdeck          # Check that my-test appears in the picker
 ```
 
-If Go is not installed but Nix is available:
+Without direnv:
 
 ```sh
 nix develop --command go test ./...
-nix develop --command go build -o workdeck .
+nix develop --command go build -o workdeck ./src
 ```
-
-`direnv` and the `nix-direnv` integration are enabled in the companion
-dotfiles Home Manager shell configuration. After applying that configuration,
-run `direnv allow` **once** in this directory to trust `.envrc`. Thereafter
-the shell loads on entry and unloads on exit. The allow step is intentionally
-not automatic. If you have not applied Home Manager yet, `nix develop` works
-on its own.
 
 Tests create temporary projects and tries. The CLI test runs real fzf in
 noninteractive filter mode with a fake tmux; it does not create live tmux
-sessions. To test a particular tries location without changing your shell
-configuration, prefix the binary invocation with
-`WORKDECK_TRIES_DIR=/your/path`.
+sessions.
 
-## Trying it without replacing the current command
+## Nix package and dotfiles
 
-This repository is independent of the dotfiles setup. Building `./workdeck`
-does **not** replace `tmux-sessionizer` or change any Ctrl-F bindings. Use the
-binary directly from this checkout while deciding whether to adopt it. No
-Home Manager activation or launcher is required to test it, and no workdeck
-integration has been added to the dotfiles repository.
+The flake builds the executable from `src/` without a manually compiled binary:
+
+```sh
+nix build .#default
+./result/bin/workdeck --help
+```
+
+The companion dotfiles flake points to this local checkout and installs this
+package through Home Manager. Its Ctrl-F bindings invoke `workdeck` instead of
+the old `tmux-sessionizer` script. Until you activate those changes, your
+existing shortcuts are unaffected. If you move this checkout, update the
+dotfiles flake input path; refresh its lock after workdeck source changes.
