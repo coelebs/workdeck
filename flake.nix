@@ -1,5 +1,5 @@
 {
-  description = "Development environment for workdeck";
+  description = "Workdeck package and development environment";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
@@ -9,16 +9,27 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
     in
     {
-      packages = forAllSystems (pkgs: {
-        default = pkgs.buildGoModule {
+      packages = forAllSystems (pkgs: rec {
+        default = workdeck;
+        workdeck = pkgs.buildGoModule {
           pname = "workdeck";
           version = "0.1.0";
           src = ./.;
           subPackages = [ "src" ];
           vendorHash = null;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeCheckInputs = [ pkgs.fzf ];
           postInstall = ''
             mv "$out/bin/src" "$out/bin/workdeck"
+            wrapProgram "$out/bin/workdeck" \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.fzf pkgs.tmux ]}
           '';
+          meta = {
+            description = "Tmux work sessions for Git projects and named experiments";
+            homepage = "https://github.com/coelebs/workdeck";
+            mainProgram = "workdeck";
+            platforms = systems;
+          };
         };
       });
 

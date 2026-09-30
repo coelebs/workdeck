@@ -64,17 +64,38 @@ Tests create temporary projects and tries. The CLI test runs real fzf in
 noninteractive filter mode with a fake tmux; it does not create live tmux
 sessions.
 
-## Nix package and dotfiles
+## Install with Nix
 
-The flake builds the executable from `src/` without a manually compiled binary:
+With Nix and flakes enabled, run directly or install without cloning the repository:
+
+```sh
+nix run github:coelebs/workdeck -- --help
+nix profile add github:coelebs/workdeck
+```
+
+The package includes fzf and tmux on its runtime PATH; you do not need to install
+them separately. Both `packages.<system>.default` and
+`packages.<system>.workdeck` export the package for `x86_64-linux` and
+`aarch64-linux`.
+
+To consume it from another flake, add an input and install its package (for
+example, with Home Manager):
+
+```nix
+inputs.workdeck.url = "github:coelebs/workdeck";
+inputs.workdeck.inputs.nixpkgs.follows = "nixpkgs";
+
+# In a Home Manager module with access to the flake inputs:
+home.packages = [ inputs.workdeck.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+```
+
+The consumer's lock file pins the source revision. No local checkout or manually
+compiled binary is needed. Update the pin with `nix flake update workdeck`.
+
+To build or run from a local checkout:
 
 ```sh
 nix build .#default
 ./result/bin/workdeck --help
+nix run . -- --help
 ```
-
-The companion dotfiles flake points to this local checkout and installs this
-package through Home Manager. Its Ctrl-F bindings invoke `workdeck` instead of
-the old `tmux-sessionizer` script. Until you activate those changes, your
-existing shortcuts are unaffected. If you move this checkout, update the
-dotfiles flake input path; refresh its lock after workdeck source changes.
