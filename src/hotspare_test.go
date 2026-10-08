@@ -75,7 +75,7 @@ func TestHotspareSetupHidesInactiveAndInstallsSkill(t *testing.T) {
 	}
 	skill := filepath.Join(home, ".agents", "skills", "workdeck-main", "SKILL.md")
 	content, err := os.ReadFile(skill)
-	if err != nil || !strings.Contains(string(content), "name: workdeck-main") || !strings.Contains(string(content), "description:") || !strings.Contains(string(content), "hostspare claim --main "+main) {
+	if err != nil || !strings.HasPrefix(string(content), "---\nname: workdeck-main\n") || !strings.Contains(string(content), "description:") || !strings.Contains(string(content), "hostspare claim --main "+main) {
 		t.Fatalf("skill %s = %q, %v", skill, content, err)
 	}
 	openCodeSkill := filepath.Join(home, ".config", "opencode", "skills", "workdeck-main", "SKILL.md")
