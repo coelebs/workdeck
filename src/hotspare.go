@@ -599,7 +599,7 @@ func (a app) installSkill(main string, force bool) error {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return err
 	}
-	return a.linkOpenCodeSkill(name, path, force)
+	return a.copyOpenCodeSkill(name, path, force)
 }
 
 func (a app) skillPath(main string) string {
@@ -612,22 +612,22 @@ func (a app) openCodeSkillPath(main string) string {
 	return filepath.Join(a.home, ".config", "opencode", "skills", name, "SKILL.md")
 }
 
-// OpenCode v1 only scans ~/.config/opencode/skills. Newer OpenCode versions
-// also scan ~/.agents/skills, so link both locations to one generated skill.
-func (a app) linkOpenCodeSkill(name, source string, force bool) error {
+// OpenCode v1 only scans ~/.config/opencode/skills and ignores symlinked skill
+// files. Newer OpenCode versions also scan ~/.agents/skills, so maintain a
+// generated copy for v1 alongside the universal source.
+func (a app) copyOpenCodeSkill(name, source string, force bool) error {
 	path := filepath.Join(a.home, ".config", "opencode", "skills", name, "SKILL.md")
 	info, err := os.Lstat(path)
 	if err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			target, linkErr := os.Readlink(path)
-			if linkErr != nil {
-				return linkErr
-			}
-			if target == source {
-				return nil
+		generated := false
+		if info.Mode()&os.ModeSymlink == 0 {
+			if content, readErr := os.ReadFile(path); readErr != nil {
+				return readErr
+			} else {
+				generated = strings.Contains(string(content), skillMarker)
 			}
 		}
-		if !force {
+		if !generated && !force {
 			return fmt.Errorf("refusing to overwrite existing OpenCode skill %s; use workdeck skill install --main <main> --force", path)
 		}
 		if err := os.Remove(path); err != nil {
@@ -639,7 +639,11 @@ func (a app) linkOpenCodeSkill(name, source string, force bool) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	return os.Symlink(source, path)
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, content, 0644)
 }
 
 func (a app) checkSkillOverwrite(main string, force bool) error {
@@ -651,7 +655,13 @@ func (a app) checkSkillOverwrite(main string, force bool) error {
 	}
 	openCodePath := a.openCodeSkillPath(main)
 	if info, err := os.Lstat(openCodePath); err == nil && info.Mode()&os.ModeSymlink == 0 && !force {
-		return fmt.Errorf("refusing to overwrite existing OpenCode skill %s; use workdeck skill install --main %s --force", openCodePath, main)
+		content, readErr := os.ReadFile(openCodePath)
+		if readErr != nil {
+			return readErr
+		}
+		if !strings.Contains(string(content), skillMarker) {
+			return fmt.Errorf("refusing to overwrite existing OpenCode skill %s; use workdeck skill install --main %s --force", openCodePath, main)
+		}
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
