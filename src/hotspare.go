@@ -144,8 +144,12 @@ func localBase(base string) string {
 }
 
 func (a app) hotspare(args []string) error {
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		return errors.New("usage: workdeck hotspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release --main <main> <spare> | recover --main <main> <spare> --force")
+	if len(args) == 0 {
+		return errors.New("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release --main <main> <spare> | recover --main <main> <spare> --force")
+	}
+	if args[0] == "--help" || args[0] == "-h" {
+		fmt.Println("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release --main <main> <spare> | recover --main <main> <spare> --force")
+		return nil
 	}
 	switch args[0] {
 	case "setup":
@@ -165,7 +169,7 @@ func (a app) hotspare(args []string) error {
 			return err
 		}
 		if len(rest) != 1 {
-			return errors.New("usage: workdeck hotspare claim --main <main> <branch>")
+			return errors.New("usage: workdeck hostspare claim --main <main> <branch>")
 		}
 		return claimHotspare(main, rest[0])
 	case "release":
@@ -174,7 +178,7 @@ func (a app) hotspare(args []string) error {
 			return err
 		}
 		if len(rest) != 1 {
-			return errors.New("usage: workdeck hotspare release --main <main> <spare>")
+			return errors.New("usage: workdeck hostspare release --main <main> <spare>")
 		}
 		return releaseHotspare(main, rest[0])
 	case "recover":
@@ -183,7 +187,7 @@ func (a app) hotspare(args []string) error {
 			return err
 		}
 		if len(rest) != 2 || rest[1] != "--force" {
-			return errors.New("usage: workdeck hotspare recover --main <main> <spare> --force")
+			return errors.New("usage: workdeck hostspare recover --main <main> <spare> --force")
 		}
 		return recoverHotspare(main, rest[0])
 	default:
@@ -590,7 +594,7 @@ func (a app) installSkill(main string, force bool) error {
 		return err
 	}
 	digest := sha256.Sum256([]byte(config.Main))
-	content := fmt.Sprintf("%s\n# Workdeck hotspares: %s\n\nInvestigate and plan in `%s`. Before any edit, claim a spare:\n\n```sh\nworkdeck hotspare claim --main %s <branch>\n```\n\nWork only in the printed path. If claiming fails, run `workdeck hotspare status --main %s`, report the unavailable spares, and wait. Do not edit the main checkout. Release only after the branch is pushed and merged:\n\n```sh\nworkdeck hotspare release --main %s <spare>\n```\n\nManaged-set id: %s\n", skillMarker, filepath.Base(config.Main), config.Main, config.Main, config.Main, config.Main, hex.EncodeToString(digest[:8]))
+	content := fmt.Sprintf("%s\n# Workdeck hostspares: %s\n\nInvestigate and plan in `%s`. Before any edit, claim a spare:\n\n```sh\nworkdeck hostspare claim --main %s <branch>\n```\n\nWork only in the printed path. If claiming fails, run `workdeck hostspare status --main %s`, report the unavailable spares, and wait. Do not edit the main checkout. Release only after the branch is pushed and merged:\n\n```sh\nworkdeck hostspare release --main %s <spare>\n```\n\nManaged-set id: %s\n", skillMarker, filepath.Base(config.Main), config.Main, config.Main, config.Main, config.Main, hex.EncodeToString(digest[:8]))
 	return os.WriteFile(path, []byte(content), 0644)
 }
 

@@ -30,10 +30,10 @@ type app struct {
 
 func (a app) execute(args []string) error {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("usage: workdeck [directory] | workdeck try <name> | workdeck hotspare <command>\ntries: $WORKDECK_TRIES_DIR (default: ~/Projects/tries/)\nhotspare: setup, status, claim, release, recover\nskill: install")
+		fmt.Println("usage: workdeck [directory] | workdeck try <name> | workdeck hostspare <command>\ntries: $WORKDECK_TRIES_DIR (default: ~/Projects/tries/)\nhostspare: setup, status, claim, release, recover\nskill: install")
 		return nil
 	}
-	if len(args) > 0 && args[0] == "hotspare" {
+	if len(args) > 0 && (args[0] == "hostspare" || args[0] == "hotspare") {
 		return a.hotspare(args[1:])
 	}
 	if len(args) > 0 && args[0] == "skill" {

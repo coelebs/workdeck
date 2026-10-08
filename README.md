@@ -10,7 +10,7 @@ workdeck                         # Pick a Git project or existing try
 workdeck ~/Projects/dotfiles     # Open a specific directory
 workdeck try redis-pool           # Create or reopen today's named try
 workdeck try 'test a library'     # Spaces become dashes
-workdeck hotspare status --main ~/Work/deliverable-scb-tomahawk
+workdeck hostspare status --main ~/Work/deliverable-scb-tomahawk
 workdeck --help
 ```
 
@@ -20,12 +20,12 @@ Hot spares are independent, pre-warmed Git clones that Workdeck allocates for
 editing large repositories. The main checkout remains available for
 investigation; agents must claim a spare before editing. Unclaimed spares are
 hidden from the normal `workdeck` picker. Claimed spares appear labelled as
-`hotspare` entries.
+`hotspare` entries. `hotspare` remains an alias for the `hostspare` command.
 
 Configure a managed set with an explicit release baseline:
 
 ```sh
-workdeck hotspare setup --base origin/master \
+workdeck hostspare setup --base origin/master \
   ~/Work/deliverable-scb-tomahawk \
   ~/Work/deliverable-scb-tomahawk-1 \
   ~/Work/deliverable-scb-tomahawk-2
@@ -41,7 +41,7 @@ Claim a clean spare before editing. It fetches remotes, creates the requested
 new branch from main's committed `HEAD`, and prints the allocated directory:
 
 ```sh
-workdeck hotspare claim --main ~/Work/deliverable-scb-tomahawk AHWP-9999-fix
+workdeck hostspare claim --main ~/Work/deliverable-scb-tomahawk AHWP-9999-fix
 ```
 
 Uncommitted main changes are intentionally not copied. Claims fail if the
@@ -50,9 +50,9 @@ misaligned spares are skipped. If none are available, Workdeck reports why;
 do not edit main as a fallback.
 
 ```sh
-workdeck hotspare status --main ~/Work/deliverable-scb-tomahawk
-workdeck hotspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
-workdeck hotspare recover --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
+workdeck hostspare status --main ~/Work/deliverable-scb-tomahawk
+workdeck hostspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
+workdeck hostspare recover --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
 ```
 
 Release requires a clean, pushed branch merged into the configured base. It

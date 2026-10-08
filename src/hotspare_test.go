@@ -75,7 +75,7 @@ func TestHotspareSetupHidesInactiveAndInstallsSkill(t *testing.T) {
 	}
 	skill := filepath.Join(home, ".agents", "skills", "workdeck-main", "SKILL.md")
 	content, err := os.ReadFile(skill)
-	if err != nil || !strings.Contains(string(content), "hotspare claim --main "+main) {
+	if err != nil || !strings.Contains(string(content), "hostspare claim --main "+main) {
 		t.Fatalf("skill %s = %q, %v", skill, content, err)
 	}
 	items, err := activeHotspares([]entry{{kind: "project", name: "main", path: main}, {kind: "project", name: "spare-1", path: spares[0]}, {kind: "project", name: "spare-2", path: spares[1]}})
