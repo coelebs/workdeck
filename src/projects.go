@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -41,7 +42,9 @@ func findProjects(home, triesDir string) ([]entry, error) {
 		}
 		if name == ".git" {
 			parent := filepath.Dir(path)
-			projects = append(projects, entry{kind: "project", name: filepath.Base(parent), path: parent})
+			if !isSubmoduleGitFile(path, d) {
+				projects = append(projects, entry{kind: "project", name: filepath.Base(parent), path: parent})
+			}
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -53,4 +56,31 @@ func findProjects(home, triesDir string) ([]entry, error) {
 	}
 	sort.Slice(projects, func(i, j int) bool { return projects[i].path > projects[j].path })
 	return projects, nil
+}
+
+// Submodules use a .git file pointing into the parent's .git/modules tree.
+// Linked worktrees also use .git files, but point into .git/worktrees and stay
+// selectable as projects.
+func isSubmoduleGitFile(path string, d fs.DirEntry) bool {
+	if d.IsDir() {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	gitDir, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir: ")
+	if !ok {
+		return false
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(filepath.Dir(path), gitDir)
+	}
+	parts := strings.Split(filepath.Clean(gitDir), string(filepath.Separator))
+	for i := 0; i+1 < len(parts); i++ {
+		if parts[i] == ".git" && parts[i+1] == "modules" {
+			return true
+		}
+	}
+	return false
 }

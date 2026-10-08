@@ -20,12 +20,13 @@ func TestFindProjects(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(home, "Projects", "project")
 	worktree := filepath.Join(home, "Projects", "worktree")
+	submodule := filepath.Join(project, "metadata", "ares-build-agent")
 	tooDeep := filepath.Join(home, "a", "b", "c", "d")
 	ignored := filepath.Join(home, ".cache-work", "hidden")
 	hiddenAncestor := filepath.Join(home, ".codex", ".tmp", "plugins")
 	hiddenProject := filepath.Join(home, "Projects", ".private")
 	tries := filepath.Join(home, "Projects", "tries")
-	for _, path := range []string{project, worktree, tooDeep, ignored, hiddenAncestor, hiddenProject, filepath.Join(tries, "with-git")} {
+	for _, path := range []string{project, worktree, submodule, tooDeep, ignored, hiddenAncestor, hiddenProject, filepath.Join(tries, "with-git")} {
 		if err := os.MkdirAll(path, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -36,6 +37,9 @@ func TestFindProjects(t *testing.T) {
 		}
 	}
 	if err := os.WriteFile(filepath.Join(worktree, ".git"), []byte("gitdir: elsewhere"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(submodule, ".git"), []byte("gitdir: ../../../.git/modules/metadata/ares-build-agent"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	got, err := findProjects(home, tries)
