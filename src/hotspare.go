@@ -596,7 +596,10 @@ func (a app) installSkill(main string, force bool) error {
 	name := "workdeck-" + filepath.Base(config.Main)
 	digest := sha256.Sum256([]byte(config.Main))
 	content := fmt.Sprintf("%s\n---\nname: %s\ndescription: Use when investigating or editing the managed %s repository. Investigate in main; claim a hostspare before any edit.\n---\n\n# Workdeck hostspares: %s\n\nInvestigate and plan in `%s`. Before any edit, claim a spare:\n\n```sh\nworkdeck hostspare claim --main %s <branch>\n```\n\nWork only in the printed path. If claiming fails, run `workdeck hostspare status --main %s`, report the unavailable spares, and wait. Do not edit the main checkout. Release only after the branch is pushed and merged:\n\n```sh\nworkdeck hostspare release --main %s <spare>\n```\n\nManaged-set id: %s\n", skillMarker, name, filepath.Base(config.Main), filepath.Base(config.Main), config.Main, config.Main, config.Main, config.Main, hex.EncodeToString(digest[:8]))
-	return os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return err
+	}
+	return a.linkOpenCodeSkill(name, path, force)
 }
 
 func (a app) skillPath(main string) string {
@@ -604,10 +607,51 @@ func (a app) skillPath(main string) string {
 	return filepath.Join(a.home, ".agents", "skills", name, "SKILL.md")
 }
 
+func (a app) openCodeSkillPath(main string) string {
+	name := "workdeck-" + filepath.Base(main)
+	return filepath.Join(a.home, ".config", "opencode", "skills", name, "SKILL.md")
+}
+
+// OpenCode v1 only scans ~/.config/opencode/skills. Newer OpenCode versions
+// also scan ~/.agents/skills, so link both locations to one generated skill.
+func (a app) linkOpenCodeSkill(name, source string, force bool) error {
+	path := filepath.Join(a.home, ".config", "opencode", "skills", name, "SKILL.md")
+	info, err := os.Lstat(path)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, linkErr := os.Readlink(path)
+			if linkErr != nil {
+				return linkErr
+			}
+			if target == source {
+				return nil
+			}
+		}
+		if !force {
+			return fmt.Errorf("refusing to overwrite existing OpenCode skill %s; use workdeck skill install --main <main> --force", path)
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.Symlink(source, path)
+}
+
 func (a app) checkSkillOverwrite(main string, force bool) error {
 	path := a.skillPath(main)
 	if old, err := os.ReadFile(path); err == nil && !strings.Contains(string(old), skillMarker) && !force {
 		return fmt.Errorf("refusing to overwrite manually changed skill %s; use workdeck skill install --main %s --force", path, main)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	openCodePath := a.openCodeSkillPath(main)
+	if info, err := os.Lstat(openCodePath); err == nil && info.Mode()&os.ModeSymlink == 0 && !force {
+		return fmt.Errorf("refusing to overwrite existing OpenCode skill %s; use workdeck skill install --main %s --force", openCodePath, main)
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

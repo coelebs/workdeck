@@ -78,6 +78,10 @@ func TestHotspareSetupHidesInactiveAndInstallsSkill(t *testing.T) {
 	if err != nil || !strings.Contains(string(content), "name: workdeck-main") || !strings.Contains(string(content), "description:") || !strings.Contains(string(content), "hostspare claim --main "+main) {
 		t.Fatalf("skill %s = %q, %v", skill, content, err)
 	}
+	openCodeSkill := filepath.Join(home, ".config", "opencode", "skills", "workdeck-main", "SKILL.md")
+	if target, err := os.Readlink(openCodeSkill); err != nil || target != skill {
+		t.Fatalf("OpenCode skill link = %q, %v", target, err)
+	}
 	items, err := activeHotspares([]entry{{kind: "project", name: "main", path: main}, {kind: "project", name: "spare-1", path: spares[0]}, {kind: "project", name: "spare-2", path: spares[1]}})
 	if err != nil || len(items) != 1 || items[0].path != main {
 		t.Fatalf("inactive picker entries = %+v, %v", items, err)
