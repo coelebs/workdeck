@@ -10,8 +10,57 @@ workdeck                         # Pick a Git project or existing try
 workdeck ~/Projects/dotfiles     # Open a specific directory
 workdeck try redis-pool           # Create or reopen today's named try
 workdeck try 'test a library'     # Spaces become dashes
+workdeck hotspare status --main ~/Work/deliverable-scb-tomahawk
 workdeck --help
 ```
+
+## Hot spares
+
+Hot spares are independent, pre-warmed Git clones that Workdeck allocates for
+editing large repositories. The main checkout remains available for
+investigation; agents must claim a spare before editing. Unclaimed spares are
+hidden from the normal `workdeck` picker. Claimed spares appear labelled as
+`hotspare` entries.
+
+Configure a managed set with an explicit release baseline:
+
+```sh
+workdeck hotspare setup --base origin/master \
+  ~/Work/deliverable-scb-tomahawk \
+  ~/Work/deliverable-scb-tomahawk-1 \
+  ~/Work/deliverable-scb-tomahawk-2
+```
+
+Setup validates that every spare is a clean independent clone with the same
+`origin` as main. It writes local state under `.git/`, does not alter Git
+working state, and installs an AI skill at
+`~/.agents/skills/workdeck-<main-name>/SKILL.md`. When main is not on
+`master`, `--base` is required.
+
+Claim a clean spare before editing. It fetches remotes, creates the requested
+new branch from main's committed `HEAD`, and prints the allocated directory:
+
+```sh
+workdeck hotspare claim --main ~/Work/deliverable-scb-tomahawk AHWP-9999-fix
+```
+
+Uncommitted main changes are intentionally not copied. Claims fail if the
+branch exists on origin or is checked out by a managed clone. Dirty or
+misaligned spares are skipped. If none are available, Workdeck reports why;
+do not edit main as a fallback.
+
+```sh
+workdeck hotspare status --main ~/Work/deliverable-scb-tomahawk
+workdeck hotspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
+workdeck hotspare recover --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
+```
+
+Release requires a clean, pushed branch merged into the configured base. It
+fast-forwards the spare to that base without resetting, deleting branches, or
+discarding files. Recovery only clears stale Workdeck state and locks; it never
+changes Git state. Reinstall a generated skill with
+`workdeck skill install --main <main>`; use `--force` only to replace a
+manually edited skill.
 
 `try` always requires a name. A new try named `redis-pool` is stored as
 `YYYY-MM-DD-redis-pool` and is **not** initialized as a Git repository.

@@ -30,8 +30,14 @@ type app struct {
 
 func (a app) execute(args []string) error {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Println("usage: workdeck [directory] | workdeck try <name>\ntries: $WORKDECK_TRIES_DIR (default: ~/Projects/tries/)")
+		fmt.Println("usage: workdeck [directory] | workdeck try <name> | workdeck hotspare <command>\ntries: $WORKDECK_TRIES_DIR (default: ~/Projects/tries/)\nhotspare: setup, status, claim, release, recover\nskill: install")
 		return nil
+	}
+	if len(args) > 0 && args[0] == "hotspare" {
+		return a.hotspare(args[1:])
+	}
+	if len(args) > 0 && args[0] == "skill" {
+		return a.skill(args[1:])
 	}
 	if len(args) > 0 && args[0] == "try" {
 		if len(args) != 2 {
@@ -67,6 +73,10 @@ func (a app) execute(args []string) error {
 			return err
 		}
 		projects, err := findProjects(a.home, triesDir)
+		if err != nil {
+			return err
+		}
+		projects, err = activeHotspares(projects)
 		if err != nil {
 			return err
 		}
