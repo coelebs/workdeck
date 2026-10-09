@@ -183,4 +183,11 @@ func TestSkillInstallProtectsManualChanges(t *testing.T) {
 	if err := a.installSkill(main, true); err != nil {
 		t.Fatal(err)
 	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "If the current directory is listed as claimed, work there and do not claim another spare.") {
+		t.Fatal("generated skill does not preserve active-spare guidance")
+	}
 }
