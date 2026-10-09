@@ -49,6 +49,19 @@ branch exists on origin or is checked out by a managed clone. Dirty or
 misaligned spares are skipped. If none are available, Workdeck reports why;
 do not edit main as a fallback.
 
+Configure optional per-set hooks with argv, not shell snippets. Hooks run in
+the allocated spare with `WORKDECK_SPARE`, `WORKDECK_MAIN`, `WORKDECK_BRANCH`,
+and `WORKDECK_BASE` set. A claim hook runs after the branch and claim state are
+created. A release hook runs after the spare is checked out and fast-forwarded
+to its base, before its claim state is cleared; a failed hook leaves it claimed
+so it can be retried.
+
+```sh
+workdeck hostspare hook set --main ~/Work/deliverable-scb-tomahawk --claim ./scripts/claim-setup --verbose
+workdeck hostspare hook set --main ~/Work/deliverable-scb-tomahawk --release ./scripts/release-cleanup
+workdeck hostspare hook clear --main ~/Work/deliverable-scb-tomahawk --claim
+```
+
 ```sh
 workdeck hostspare status --main ~/Work/deliverable-scb-tomahawk
 workdeck hostspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1

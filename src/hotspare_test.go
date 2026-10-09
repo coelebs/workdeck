@@ -131,6 +131,59 @@ func TestHotspareClaimAndRelease(t *testing.T) {
 	}
 }
 
+func TestHotspareHooks(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	hook := filepath.Join(t.TempDir(), "hook")
+	content := "#!/bin/sh\nprintf '%s|%s|%s|%s|%s\\n' \"$1\" \"$WORKDECK_SPARE\" \"$WORKDECK_MAIN\" \"$WORKDECK_BRANCH\" \"$WORKDECK_BASE\" >> \"$2\"\n"
+	if err := os.WriteFile(hook, []byte(content), 0700); err != nil {
+		t.Fatal(err)
+	}
+	claimLog := filepath.Join(t.TempDir(), "claim.log")
+	releaseLog := filepath.Join(t.TempDir(), "release.log")
+	if err := configureHotspareHook([]string{"set", "--main", main, "--claim", hook, "claim", claimLog}); err != nil {
+		t.Fatal(err)
+	}
+	if err := configureHotspareHook([]string{"set", "--main", main, "--release", hook, "release", releaseLog}); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "hook-branch"); err != nil {
+		t.Fatal(err)
+	}
+	claim, err := os.ReadFile(claimLog)
+	if err != nil || string(claim) != "claim|"+spares[0]+"|"+main+"|hook-branch|origin/master\n" {
+		t.Fatalf("claim hook = %q, %v", claim, err)
+	}
+	runGit(t, spares[0], "config", "user.name", "Test")
+	runGit(t, spares[0], "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(spares[0], "task"), []byte("done\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "add", "task")
+	runGit(t, spares[0], "commit", "-m", "task")
+	runGit(t, spares[0], "push", "origin", "hook-branch")
+	runGit(t, main, "fetch", "origin")
+	runGit(t, main, "merge", "--ff-only", "origin/hook-branch")
+	runGit(t, main, "push", "origin", "master")
+	if err := releaseHotspare(main, "spare-1"); err != nil {
+		t.Fatal(err)
+	}
+	release, err := os.ReadFile(releaseLog)
+	if err != nil || string(release) != "release|"+spares[0]+"|"+main+"|hook-branch|origin/master\n" {
+		t.Fatalf("release hook = %q, %v", release, err)
+	}
+	if err := configureHotspareHook([]string{"clear", "--main", main, "--claim"}); err != nil {
+		t.Fatal(err)
+	}
+	config, err := loadConfig(main)
+	if err != nil || len(config.OnClaim) != 0 || len(config.OnRelease) == 0 {
+		t.Fatalf("config after clear = %+v, %v", config, err)
+	}
+}
+
 func TestHotspareClaimRejectsRemoteBranch(t *testing.T) {
 	main, spares := hotspareRepos(t)
 	a := app{home: t.TempDir()}
