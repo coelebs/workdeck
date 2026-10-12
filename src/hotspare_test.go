@@ -150,6 +150,8 @@ func TestHotspareReleaseAcceptsSquashMergedBranch(t *testing.T) {
 	runGit(t, spares[0], "push", "origin", "task-branch")
 	runGit(t, main, "fetch", "origin")
 	runGit(t, main, "merge", "--squash", "origin/task-branch")
+	runGit(t, main, "config", "user.name", "Test")
+	runGit(t, main, "config", "user.email", "test@example.com")
 	runGit(t, main, "commit", "-m", "squashed task")
 	runGit(t, main, "push", "origin", "master")
 
