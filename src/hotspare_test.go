@@ -131,6 +131,37 @@ func TestHotspareClaimAndRelease(t *testing.T) {
 	}
 }
 
+func TestHotspareReleaseAcceptsSquashMergedBranch(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "task-branch"); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "config", "user.name", "Test")
+	runGit(t, spares[0], "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(spares[0], "task"), []byte("done\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "add", "task")
+	runGit(t, spares[0], "commit", "-m", "task")
+	runGit(t, spares[0], "push", "origin", "task-branch")
+	runGit(t, main, "fetch", "origin")
+	runGit(t, main, "merge", "--squash", "origin/task-branch")
+	runGit(t, main, "commit", "-m", "squashed task")
+	runGit(t, main, "push", "origin", "master")
+
+	if err := releaseHotspare(main, "spare-1"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadState(spares[0])
+	if err != nil || state.Claimed {
+		t.Fatalf("released state = %+v, %v", state, err)
+	}
+}
+
 func TestHotspareHooks(t *testing.T) {
 	main, spares := hotspareRepos(t)
 	a := app{home: t.TempDir()}

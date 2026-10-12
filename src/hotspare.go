@@ -80,6 +80,33 @@ func gitOK(path string, args ...string) bool {
 	return cmd.Run() == nil
 }
 
+// branchChangesPresent reports whether the complete diff introduced by branch
+// since claimedBase is already present in target. This permits a branch merged
+// with squash/rebase, where its original commits are not ancestors of target.
+func branchChangesPresent(path, claimedBase, branch, target string) bool {
+	patch, err := git(path, "diff", "--binary", claimedBase, branch)
+	if err != nil || patch == "" {
+		return err == nil
+	}
+	index, err := os.CreateTemp("", "workdeck-index-")
+	if err != nil {
+		return false
+	}
+	index.Close()
+	os.Remove(index.Name())
+	defer os.Remove(index.Name())
+	env := append(os.Environ(), "GIT_INDEX_FILE="+index.Name())
+	readTree := exec.Command("git", "-C", path, "read-tree", target)
+	readTree.Env = env
+	if readTree.Run() != nil {
+		return false
+	}
+	apply := exec.Command("git", "-C", path, "apply", "--cached", "--reverse", "--check", "--whitespace=nowarn")
+	apply.Env = env
+	apply.Stdin = strings.NewReader(patch + "\n")
+	return apply.Run() == nil
+}
+
 func readJSON(path string, value any) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -532,7 +559,8 @@ func releaseHotspare(main, value string) error {
 	if pending != "0" {
 		return fmt.Errorf("%s has unpushed commits", state.Branch)
 	}
-	if !gitOK(spare, "merge-base", "--is-ancestor", state.Branch, config.Base) {
+	if !gitOK(spare, "merge-base", "--is-ancestor", state.Branch, config.Base) &&
+		!branchChangesPresent(spare, state.BaseCommit, state.Branch, config.Base) {
 		return fmt.Errorf("%s is not merged into %s", state.Branch, config.Base)
 	}
 	if _, err := git(spare, "checkout", localBase(config.Base)); err != nil {
