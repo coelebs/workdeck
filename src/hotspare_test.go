@@ -164,6 +164,158 @@ func TestHotspareReleaseAcceptsSquashMergedBranch(t *testing.T) {
 	}
 }
 
+func TestHotsparePauseArchivesUnmergedCommittedWork(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "later"); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "config", "user.name", "Test")
+	runGit(t, spares[0], "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(spares[0], "later"), []byte("keep this\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "add", "later")
+	runGit(t, spares[0], "commit", "-m", "finish later")
+
+	if err := pauseHotspare(main, "spare-1"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadState(spares[0])
+	if err != nil || state.Claimed {
+		t.Fatalf("paused state = %+v, %v", state, err)
+	}
+	if branch := runGit(t, spares[0], "branch", "--show-current"); branch != "master" {
+		t.Fatalf("branch after pause = %q", branch)
+	}
+	if gitOK(spares[0], "show-ref", "--verify", "--quiet", "refs/heads/later") {
+		t.Fatal("paused branch still exists locally")
+	}
+	paused, err := pausedHotspares(main)
+	if err != nil || len(paused) != 1 || paused[0].Branch != "later" {
+		t.Fatalf("paused archives = %+v, %v", paused, err)
+	}
+	if _, err := os.Stat(paused[0].Patch); err != nil {
+		t.Fatalf("patch missing: %v", err)
+	}
+	runGit(t, spares[0], "am", paused[0].Patch)
+	content, err := os.ReadFile(filepath.Join(spares[0], "later"))
+	if err != nil || string(content) != "keep this\n" {
+		t.Fatalf("applied patch = %q, %v", content, err)
+	}
+}
+
+func TestHotspareResumeRestoresPausedBranch(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "later"); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "config", "user.name", "Test")
+	runGit(t, spares[0], "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(spares[0], "later"), []byte("restore me\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "add", "later")
+	runGit(t, spares[0], "commit", "-m", "later")
+	if err := pauseHotspare(main, "spare-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := resumeHotspare(main, "later"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadState(spares[0])
+	if err != nil || !state.Claimed || state.Branch != "later" {
+		t.Fatalf("resumed state = %+v, %v", state, err)
+	}
+	content, err := os.ReadFile(filepath.Join(spares[0], "later"))
+	if err != nil || string(content) != "restore me\n" {
+		t.Fatalf("restored content = %q, %v", content, err)
+	}
+}
+
+func TestHotsparePauseRefusesUncommittedChanges(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "later"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(spares[0], "README"), []byte("changed\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := pauseHotspare(main, "spare-1"); err == nil || !strings.Contains(err.Error(), "tracked uncommitted changes") {
+		t.Fatalf("pause error = %v", err)
+	}
+	state, err := loadState(spares[0])
+	if err != nil || !state.Claimed {
+		t.Fatalf("state after refused pause = %+v, %v", state, err)
+	}
+}
+
+func TestHotsparePauseArchivesDevtoolPatchAndDiscardsUntrackedFiles(t *testing.T) {
+	main, spares := hotspareRepos(t)
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "later"); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(spares[0], "work", "build", "workspace", "sources", "recipe")
+	if err := os.MkdirAll(source, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, source, "init", "-b", "master")
+	runGit(t, source, "config", "user.name", "Test")
+	runGit(t, source, "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(source, "source"), []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, source, "add", "source")
+	runGit(t, source, "commit", "-m", "base")
+	if err := os.WriteFile(filepath.Join(source, "source"), []byte("changed\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(spares[0], "discard-me"), []byte("temporary\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runner := filepath.Join(spares[0], "ares-build-agent", "run-build-agent.py")
+	if err := os.MkdirAll(filepath.Dir(runner), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runner, []byte("#!/bin/sh\nrm -rf work/build/workspace\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, spares[0], "add", "ares-build-agent/run-build-agent.py")
+	runGit(t, spares[0], "commit", "-m", "test build agent")
+
+	if err := pauseHotspare(main, "spare-1"); err != nil {
+		t.Fatal(err)
+	}
+	paused, err := pausedHotspares(main)
+	if err != nil || len(paused) != 1 || len(paused[0].DevtoolPatches) != 1 {
+		t.Fatalf("paused archives = %+v, %v", paused, err)
+	}
+	if _, err := os.Stat(paused[0].DevtoolPatches[0].Patch); err != nil {
+		t.Fatalf("devtool patch missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(spares[0], "work", "build", "workspace")); !os.IsNotExist(err) {
+		t.Fatalf("workspace remains: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(spares[0], "discard-me")); !os.IsNotExist(err) {
+		t.Fatalf("untracked file remains: %v", err)
+	}
+}
+
 func TestHotspareHooks(t *testing.T) {
 	main, spares := hotspareRepos(t)
 	a := app{home: t.TempDir()}

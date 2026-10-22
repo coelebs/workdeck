@@ -65,12 +65,29 @@ workdeck hostspare hook clear --main ~/Work/deliverable-scb-tomahawk --claim
 ```sh
 workdeck hostspare status --main ~/Work/deliverable-scb-tomahawk
 workdeck hostspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
+workdeck hostspare pause --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
+workdeck hostspare resume --main ~/Work/deliverable-scb-tomahawk AHWP-9999-fix
 workdeck hostspare recover --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
 ```
 
 Release requires a clean, pushed branch merged into the configured base. It
 fast-forwards the spare to that base without resetting, deleting branches, or
-discarding files. Recovery only clears stale Workdeck state and locks; it never
+discarding files. `pause` frees a spare without merging: it requires committed
+work, archives its commits as a binary `git am` patch in
+`<main>/.git/workdeck-paused/`, and prints that patch path. Paused patches are
+listed by `status`; its local branch is removed, so apply one later from a new
+suitable branch with `git am <path>`.
+Tracked changes inside a Yocto `devtool` workspace are saved as binary patches
+there too, then the workspace is removed. Other untracked files are discarded
+while freeing the spare. To restore a devtool patch, recreate its source with
+`devtool modify <recipe>` and run `git apply <patch>` from the archived patch's
+listed source directory.
+
+`resume` allocates a spare, recreates the paused branch from its original base,
+and applies its saved commits. For archived devtool changes, it starts the Ares
+build agent, runs `devtool modify` for each saved recipe, then applies the
+saved source patches.
+Recovery only clears stale Workdeck state and locks; it never
 changes Git state. Reinstall a generated skill with
 `workdeck skill install --main <main>`; use `--force` only to replace a
 manually edited skill.
