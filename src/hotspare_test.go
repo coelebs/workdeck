@@ -24,6 +24,10 @@ func clone(t *testing.T, remote, path string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("clone: %v: %s", err, output)
 	}
+	// Git does not copy repository-local identity settings when cloning.
+	// Every test clone must be able to commit without a global user config.
+	runGit(t, path, "config", "user.name", "Test")
+	runGit(t, path, "config", "user.email", "test@example.com")
 }
 
 func hotspareRepos(t *testing.T) (main string, spares []string) {

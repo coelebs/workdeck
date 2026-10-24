@@ -18,11 +18,11 @@
           subPackages = [ "src" ];
           vendorHash = null;
           nativeBuildInputs = [ pkgs.makeWrapper ];
-          nativeCheckInputs = [ pkgs.fzf pkgs.git ];
+          nativeCheckInputs = [ pkgs.fzf pkgs.git pkgs.util-linux ];
           postInstall = ''
             mv "$out/bin/src" "$out/bin/workdeck"
             wrapProgram "$out/bin/workdeck" \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.fzf pkgs.tmux pkgs.git ]}
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.fzf pkgs.tmux pkgs.git pkgs.util-linux ]}
           '';
           meta = {
             description = "Tmux work sessions for Git projects and named experiments";
@@ -35,7 +35,7 @@
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          packages = with pkgs; [ go fzf tmux git ];
+          packages = with pkgs; [ go fzf tmux git util-linux ];
         };
       });
     };
