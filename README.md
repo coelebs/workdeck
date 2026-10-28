@@ -65,14 +65,25 @@ workdeck hostspare hook clear --main ~/Work/deliverable-scb-tomahawk --claim
 ```sh
 workdeck hostspare status --main ~/Work/deliverable-scb-tomahawk
 workdeck hostspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
+workdeck hostspare release --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
 workdeck hostspare pause --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1
 workdeck hostspare resume --main ~/Work/deliverable-scb-tomahawk AHWP-9999-fix
 workdeck hostspare recover --main ~/Work/deliverable-scb-tomahawk deliverable-scb-tomahawk-1 --force
 ```
 
-Release requires a clean, pushed branch merged into the configured base. It
-fast-forwards the spare to that base without resetting, deleting branches, or
-discarding files. `pause` frees a spare without merging: it requires committed
+Release trusts the user's decision that work is done: no pushed/merged checks,
+and the checked-out branch need not match the original claim. By default it
+refuses staged, unstaged, untracked, or submodule changes and lists them.
+After reviewing and confirming their removal, use `release --force` to discard
+tracked changes and non-ignored untracked files, including inside initialized
+submodules. Ignored build output and untracked nested repositories are preserved;
+remaining dirt blocks release rather than triggering broader deletion.
+Release fetches origin, fast-forwards the spare's local base, synchronizes
+submodules, and preserves local task branches (including unpublished commits).
+The generated skill asks for explicit confirmation before using `--force`;
+"done" alone does not authorize discarding changes.
+
+`pause` frees a spare without merging: it requires committed
 work, archives its commits as a binary `git am` patch in
 `<main>/.git/workdeck-paused/`, and prints that patch path. Paused patches are
 listed by `status`; its local branch is removed, so apply one later from a new

@@ -123,7 +123,7 @@ func TestHotspareClaimAndRelease(t *testing.T) {
 	runGit(t, main, "merge", "--ff-only", "origin/task-branch")
 	runGit(t, main, "push", "origin", "master")
 
-	if err := releaseHotspare(main, "spare-1"); err != nil {
+	if err := releaseHotspare(main, "spare-1", false); err != nil {
 		t.Fatal(err)
 	}
 	state, err = loadState(spares[0])
@@ -159,7 +159,7 @@ func TestHotspareReleaseAcceptsSquashMergedBranch(t *testing.T) {
 	runGit(t, main, "commit", "-m", "squashed task")
 	runGit(t, main, "push", "origin", "master")
 
-	if err := releaseHotspare(main, "spare-1"); err != nil {
+	if err := releaseHotspare(main, "spare-1", false); err != nil {
 		t.Fatal(err)
 	}
 	state, err := loadState(spares[0])
@@ -357,7 +357,7 @@ func TestHotspareHooks(t *testing.T) {
 	runGit(t, main, "fetch", "origin")
 	runGit(t, main, "merge", "--ff-only", "origin/hook-branch")
 	runGit(t, main, "push", "origin", "master")
-	if err := releaseHotspare(main, "spare-1"); err != nil {
+	if err := releaseHotspare(main, "spare-1", false); err != nil {
 		t.Fatal(err)
 	}
 	release, err := os.ReadFile(releaseLog)
@@ -387,7 +387,7 @@ func TestHotspareClaimRejectsRemoteBranch(t *testing.T) {
 	}
 }
 
-func TestHotspareReleaseRefusesUnpushedChanges(t *testing.T) {
+func TestHotspareReleaseAcceptsUnpublishedRenamedBranch(t *testing.T) {
 	main, spares := hotspareRepos(t)
 	a := app{home: t.TempDir()}
 	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
@@ -403,8 +403,17 @@ func TestHotspareReleaseRefusesUnpushedChanges(t *testing.T) {
 	runGit(t, spares[0], "config", "user.email", "test@example.com")
 	runGit(t, spares[0], "add", "task")
 	runGit(t, spares[0], "commit", "-m", "pending")
-	if err := releaseHotspare(main, "spare-1"); err == nil || !strings.Contains(err.Error(), "has not been pushed") {
-		t.Fatalf("release error = %v", err)
+	runGit(t, spares[0], "branch", "-m", "renamed")
+	commit := runGit(t, spares[0], "rev-parse", "HEAD")
+	if err := releaseHotspare(main, "spare-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := runGit(t, spares[0], "rev-parse", "renamed"); got != commit {
+		t.Fatalf("unpublished branch changed: %s", got)
+	}
+	state, err := loadState(spares[0])
+	if err != nil || state.Claimed {
+		t.Fatalf("released state = %+v, %v", state, err)
 	}
 }
 
@@ -431,5 +440,115 @@ func TestSkillInstallProtectsManualChanges(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "If the current directory is listed as claimed, work there and do not claim another spare.") {
 		t.Fatal("generated skill does not preserve active-spare guidance")
+	}
+	for _, text := range []string{"trust that decision", "Ask for explicit confirmation", "<spare> --force", "Never push"} {
+		if !strings.Contains(string(content), text) {
+			t.Fatalf("generated skill missing %q", text)
+		}
+	}
+	if strings.Contains(string(content), "Release only after") {
+		t.Fatal("generated skill still requires push/merge verification")
+	}
+}
+
+func TestHotspareReleaseDirtyChangesRequireForce(t *testing.T) {
+	for _, kind := range []string{"staged", "unstaged", "untracked"} {
+		t.Run(kind, func(t *testing.T) {
+			main, spares := hotspareRepos(t)
+			a := app{home: t.TempDir()}
+			if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+				t.Fatal(err)
+			}
+			if err := claimHotspare(main, "done"); err != nil {
+				t.Fatal(err)
+			}
+			name := "README"
+			if kind == "untracked" {
+				name = "untracked"
+			}
+			if err := os.WriteFile(filepath.Join(spares[0], name), []byte("changed\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if kind == "staged" {
+				runGit(t, spares[0], "add", name)
+			}
+			runGit(t, spares[0], "config", "core.excludesFile", filepath.Join(t.TempDir(), "excludes"))
+			// Ignored build output must survive force cleanup.
+			exclude := filepath.Join(spares[0], ".git", "info", "exclude")
+			if err := os.WriteFile(exclude, []byte("build-output\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			build := filepath.Join(spares[0], "build-output")
+			if err := os.WriteFile(build, []byte("keep\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			before := runGit(t, spares[0], "status", "--porcelain")
+			if err := a.hotspare([]string{"release", "--main", main, "spare-1"}); err == nil || !strings.Contains(err.Error(), "--force") || !strings.Contains(err.Error(), name) {
+				t.Fatalf("release error = %v", err)
+			}
+			if after := runGit(t, spares[0], "status", "--porcelain"); after != before {
+				t.Fatal("refused release changed files")
+			}
+			state, err := loadState(spares[0])
+			if err != nil || !state.Claimed {
+				t.Fatalf("state after refusal = %+v, %v", state, err)
+			}
+			if err := a.hotspare([]string{"release", "--main", main, "--force", "spare-1"}); err != nil {
+				t.Fatal(err)
+			}
+			if status := runGit(t, spares[0], "status", "--porcelain"); status != "" {
+				t.Fatalf("dirty after force: %s", status)
+			}
+			if _, err := os.Stat(build); err != nil {
+				t.Fatalf("ignored output removed: %v", err)
+			}
+		})
+	}
+}
+
+func TestHotspareForceReleaseCleansSubmodule(t *testing.T) {
+	t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+	main, spares := hotspareRepos(t)
+	// Use an existing local repository as a submodule source.
+	runGit(t, main, "config", "user.name", "Test")
+	runGit(t, main, "config", "user.email", "test@example.com")
+	runGit(t, main, "submodule", "add", spares[1], "module")
+	runGit(t, main, "commit", "-am", "add submodule")
+	runGit(t, main, "push", "origin", "master")
+	for _, spare := range spares {
+		runGit(t, spare, "fetch", "origin")
+		runGit(t, spare, "merge", "--ff-only", "origin/master")
+		runGit(t, spare, "submodule", "update", "--init")
+	}
+	a := app{home: t.TempDir()}
+	if err := a.setupHotspares(append([]string{"--base", "origin/master", main}, spares...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := claimHotspare(main, "done"); err != nil {
+		t.Fatal(err)
+	}
+	module := filepath.Join(spares[0], "module")
+	runGit(t, module, "config", "user.name", "Test")
+	runGit(t, module, "config", "user.email", "test@example.com")
+	if err := os.WriteFile(filepath.Join(module, "README"), []byte("new commit\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, module, "commit", "-am", "drift")
+	if err := os.WriteFile(filepath.Join(module, "README"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(module, "untracked"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// A local ignore setting must not hide submodule changes from release.
+	runGit(t, spares[0], "config", "submodule.module.ignore", "all")
+	if err := releaseHotspare(main, "spare-1", false); err == nil || !strings.Contains(err.Error(), "module") {
+		t.Fatalf("release error = %v", err)
+	}
+	if err := releaseHotspare(main, "spare-1", true); err != nil {
+		t.Fatal(err)
+	}
+	if status := runGit(t, spares[0], "status", "--porcelain", "--ignore-submodules=none"); status != "" {
+		t.Fatalf("dirty after force: %s", status)
 	}
 }

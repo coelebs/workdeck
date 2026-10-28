@@ -95,33 +95,6 @@ func gitOK(path string, args ...string) bool {
 	return cmd.Run() == nil
 }
 
-// branchChangesPresent reports whether the complete diff introduced by branch
-// since claimedBase is already present in target. This permits a branch merged
-// with squash/rebase, where its original commits are not ancestors of target.
-func branchChangesPresent(path, claimedBase, branch, target string) bool {
-	patch, err := git(path, "diff", "--binary", claimedBase, branch)
-	if err != nil || patch == "" {
-		return err == nil
-	}
-	index, err := os.CreateTemp("", "workdeck-index-")
-	if err != nil {
-		return false
-	}
-	index.Close()
-	os.Remove(index.Name())
-	defer os.Remove(index.Name())
-	env := append(os.Environ(), "GIT_INDEX_FILE="+index.Name())
-	readTree := exec.Command("git", "-C", path, "read-tree", target)
-	readTree.Env = env
-	if readTree.Run() != nil {
-		return false
-	}
-	apply := exec.Command("git", "-C", path, "apply", "--cached", "--reverse", "--check", "--whitespace=nowarn")
-	apply.Env = env
-	apply.Stdin = strings.NewReader(patch + "\n")
-	return apply.Run() == nil
-}
-
 func readJSON(path string, value any) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -197,10 +170,10 @@ func localBase(base string) string {
 
 func (a app) hotspare(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release|pause --main <main> <spare> | resume --main <main> <branch> | recover --main <main> <spare> --force | hook <set|clear> --main <main> <--claim|--release> [command args...]")
+		return errors.New("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release --main <main> <spare> [--force] | pause --main <main> <spare> | resume --main <main> <branch> | recover --main <main> <spare> --force | hook <set|clear> --main <main> <--claim|--release> [command args...]")
 	}
 	if args[0] == "--help" || args[0] == "-h" {
-		fmt.Println("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release|pause --main <main> <spare> | resume --main <main> <branch> | recover --main <main> <spare> --force | hook <set|clear> --main <main> <--claim|--release> [command args...]")
+		fmt.Println("usage: workdeck hostspare setup [--base <ref>] <main> <spare>... | status --main <main> | claim --main <main> <branch> | release --main <main> <spare> [--force] | pause --main <main> <spare> | resume --main <main> <branch> | recover --main <main> <spare> --force | hook <set|clear> --main <main> <--claim|--release> [command args...]")
 		return nil
 	}
 	switch args[0] {
@@ -229,10 +202,19 @@ func (a app) hotspare(args []string) error {
 		if err != nil {
 			return err
 		}
-		if len(rest) != 1 {
-			return errors.New("usage: workdeck hostspare release --main <main> <spare>")
+		force := false
+		var values []string
+		for _, arg := range rest {
+			if arg == "--force" && !force {
+				force = true
+			} else {
+				values = append(values, arg)
+			}
 		}
-		return releaseHotspare(main, rest[0])
+		if len(values) != 1 || strings.HasPrefix(values[0], "-") {
+			return errors.New("usage: workdeck hostspare release --main <main> <spare> [--force]")
+		}
+		return releaseHotspare(main, values[0], force)
 	case "pause":
 		main, rest, err := mainFlag(args[1:])
 		if err != nil {
@@ -710,7 +692,7 @@ func selectSpare(config hotspareConfig, value string) (string, error) {
 	return "", fmt.Errorf("not a configured hotspare: %s", value)
 }
 
-func releaseHotspare(main, value string) error {
+func releaseHotspare(main, value string, force bool) error {
 	config, err := loadConfig(main)
 	if err != nil {
 		return err
@@ -726,35 +708,44 @@ func releaseHotspare(main, value string) error {
 	if !state.Claimed {
 		return fmt.Errorf("%s is not claimed", spare)
 	}
-	status, err := git(spare, "status", "--porcelain")
+	status, err := git(spare, "status", "--porcelain", "--ignore-submodules=none", "--untracked-files=all")
 	if err != nil {
 		return err
 	}
-	if status != "" {
-		return fmt.Errorf("%s has uncommitted changes", spare)
+	if status != "" && !force {
+		return fmt.Errorf("%s has uncommitted changes:\n%s\nconfirm discarding these changes, then retry release with --force", spare, status)
 	}
 	if _, err := git(spare, "fetch", "origin"); err != nil {
 		return err
 	}
-	if !gitOK(spare, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+state.Branch) {
-		return fmt.Errorf("%s has not been pushed to origin", state.Branch)
-	}
-	pending, err := git(spare, "rev-list", "--count", "origin/"+state.Branch+".."+state.Branch)
-	if err != nil {
-		return err
-	}
-	if pending != "0" {
-		return fmt.Errorf("%s has unpushed commits", state.Branch)
-	}
-	if !gitOK(spare, "merge-base", "--is-ancestor", state.Branch, config.Base) &&
-		!branchChangesPresent(spare, state.BaseCommit, state.Branch, config.Base) {
-		return fmt.Errorf("%s is not merged into %s", state.Branch, config.Base)
+	// Release is the user's declaration that work is done. Keep local branches,
+	// but do not require them to be published, merged, or match the claim name.
+	if force {
+		if _, err := git(spare, "reset", "--hard", "--recurse-submodules", "HEAD"); err != nil {
+			return err
+		}
+		if _, err := git(spare, "clean", "-fd"); err != nil {
+			return err
+		}
+		if _, err := git(spare, "submodule", "foreach", "--recursive", "git clean -fd"); err != nil {
+			return err
+		}
 	}
 	if _, err := git(spare, "checkout", localBase(config.Base)); err != nil {
 		return err
 	}
 	if _, err := git(spare, "merge", "--ff-only", config.Base); err != nil {
 		return err
+	}
+	if _, err := git(spare, "submodule", "update", "--init", "--recursive"); err != nil {
+		return err
+	}
+	status, err = git(spare, "status", "--porcelain", "--ignore-submodules=none", "--untracked-files=all")
+	if err != nil {
+		return err
+	}
+	if status != "" {
+		return fmt.Errorf("%s still has uncommitted changes after release cleanup:\n%s", spare, status)
 	}
 	if err := runHotspareHook(config.OnRelease, spare, config, state.Branch); err != nil {
 		return err
@@ -1045,7 +1036,7 @@ func (a app) installSkill(main string, force bool) error {
 	}
 	name := "workdeck-" + filepath.Base(config.Main)
 	digest := sha256.Sum256([]byte(config.Main))
-	content := fmt.Sprintf("---\nname: %s\ndescription: Use when investigating or editing the managed %s repository. Investigate in main; claim a hostspare before editing unless already in a claimed spare.\n---\n\n%s\n# Workdeck hostspares: %s\n\nInvestigate and plan in `%s`. Before any edit, check whether the current directory is already a claimed hostspare:\n\n```sh\nworkdeck hostspare status --main %s\n```\n\nIf the current directory is listed as claimed, work there and do not claim another spare. Otherwise, claim a spare:\n\n```sh\nworkdeck hostspare claim --main %s <branch>\n```\n\nWork only in the claimed path. If claiming fails, report the unavailable spares and wait. Do not edit the main checkout. Release only after the branch is pushed and merged:\n\n```sh\nworkdeck hostspare release --main %s <spare>\n```\n\nTo pause committed, unmerged work, archive it and free the spare:\n\n```sh\nworkdeck hostspare pause --main %s <spare>\n```\n\nManaged-set id: %s\n", name, filepath.Base(config.Main), skillMarker, filepath.Base(config.Main), config.Main, config.Main, config.Main, config.Main, config.Main, hex.EncodeToString(digest[:8]))
+	content := fmt.Sprintf("---\nname: %s\ndescription: Use when investigating or editing the managed %s repository. Investigate in main; claim a hostspare before editing unless already in a claimed spare.\n---\n\n%s\n# Workdeck hostspares: %s\n\nInvestigate and plan in `%s`. Before any edit, check whether the current directory is already a claimed hostspare:\n\n```sh\nworkdeck hostspare status --main %s\n```\n\nIf the current directory is listed as claimed, work there and do not claim another spare. Otherwise, claim a spare:\n\n```sh\nworkdeck hostspare claim --main %s <branch>\n```\n\nWork only in the claimed path. If claiming fails, report the unavailable spares and wait. Do not edit the main checkout.\n\nWhen the user says work is done or asks to free the spare, trust that decision. Do not require push or merge verification. Release with:\n\n```sh\nworkdeck hostspare release --main %s <spare>\n```\n\nIf release reports uncommitted changes, inspect and summarize staged, unstaged, untracked, and submodule changes. Ask for explicit confirmation before discarding them; saying the work is done alone is not consent to discard changes. Only after confirmation, retry with:\n\n```sh\nworkdeck hostspare release --main %s <spare> --force\n```\n\nForce discards tracked changes and non-ignored untracked files, including inside initialized submodules. It preserves local branches, ignored build output, and untracked nested repositories. If cleanup still fails, report the blocker; do not broaden deletion. Never push as part of releasing.\n\nTo pause committed work for later, archive it and free the spare:\n\n```sh\nworkdeck hostspare pause --main %s <spare>\n```\n\nManaged-set id: %s\n", name, filepath.Base(config.Main), skillMarker, filepath.Base(config.Main), config.Main, config.Main, config.Main, config.Main, config.Main, config.Main, hex.EncodeToString(digest[:8]))
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return err
 	}
